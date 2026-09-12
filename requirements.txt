@@ -1,0 +1,14 @@
+# Kern
+opencv-python>=4.8.0
+mediapipe>=0.10.18
+numpy>=1.24.0
+python-osc>=1.8.0
+# Schriftsatz der Oberflaeche. Fehlt Pillow, zeichnet die Anzeige mit den
+# einfachen OpenCV Strichfonts weiter - sie sieht dann nur schlichter aus.
+pillow>=9.0.0
+
+# Interne Sound Engine (optional, aber empfohlen: dann braucht ihr keinen DAW)
+sounddevice>=0.4.6
+
+# Optional: OSC nach MIDI Bruecke fuer DAWs ohne Max for Live
+# python-rtmidi>=1.5.0

@@ -1,0 +1,89 @@
+{
+  "performers": 1,
+  "camera": {
+    "device": 0,
+    "width": 1280,
+    "height": 720,
+    "fps": 60,
+    "mirror": true
+  },
+  "tracking": {
+    "max_hands": 6,
+    "min_detection_confidence": 0.5,
+    "min_tracking_confidence": 0.5,
+    "hold_frames": 8
+  },
+  "mapping": {
+    "smoothing": 0.35,
+    "finger_extend_max": 0.45,
+    "finger_hold_frames": 3,
+    "lean_degrees": 55.0,
+    "thumb_min": 0.33,
+    "thumb_max": 0.88,
+    "flip_threshold": 0.25,
+    "flip_frames": 3,
+    "flip_arm": 0.55,
+    "pinch_max": 0.3,
+    "pinch_clearance": 1.4,
+    "riser_frames": 12,
+    "drop_frames": 6,
+    "riser_open": 0.85,
+    "drop_closed": 0.15
+  },
+  "osc": {
+    "enabled": true,
+    "host": "127.0.0.1",
+    "port": 9000,
+    "send_rate": 60
+  },
+  "audio": {
+    "enabled": true,
+    "library": "auto",
+    "samplerate": 44100,
+    "blocksize": 256,
+    "bpm": 128.0,
+    "master_gain": 0.8
+  },
+  "ui": {
+    "show_window": true,
+    "fullscreen": false,
+    "draw_landmarks": true,
+    "countdown_seconds": 3.0
+  },
+  "forge": {
+    "library_x": 0.115,
+    "library_width": 0.185,
+    "library_top": 0.205,
+    "library_bottom": 0.925,
+    "library_capture_x": 0.32,
+    "rack_x": 0.885,
+    "rack_width": 0.185,
+    "rack_top": 0.205,
+    "rack_bottom": 0.775,
+    "rack_capture_x": 0.68,
+    "max_parked": 5,
+    "select_hysteresis": 0.38,
+    "select_smoothing": 0.45,
+    "take_frames": 4,
+    "take_cooldown": 16,
+    "release_frames": 10,
+    "freeze_frames": 3,
+    "fuse_distance": 0.22,
+    "fuse_frames": 3,
+    "fuse_duration": 14,
+    "max_recipes": 4,
+    "min_hold_frames": 10,
+    "place_frames": 4,
+    "discard_frames": 22,
+    "fly_frames": 12,
+    "max_tokens": 8,
+    "trash_x": 0.885,
+    "trash_y": 0.855,
+    "trash_radius": 0.075,
+    "trash_frames": 24
+  },
+  "tracks": {
+    "max_match_distance": 0.16,
+    "max_missing_frames": 12
+  }
+}
