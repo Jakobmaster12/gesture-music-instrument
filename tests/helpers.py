@@ -12,13 +12,29 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import numpy as np  # noqa: E402
 
-from src.config import Config  # noqa: E402
+from src.config import Config, MappingConfig  # noqa: E402
 from src.engine import InstrumentEngine  # noqa: E402
+from src.mapping import gestures  # noqa: E402
 from src.vision.tracker import synthetic_hand  # noqa: E402
 
 FRAME_TIME = 1.0 / 30.0
 
 POSE = {"fingers": 2, "thumb": 1.0, "tilt": 0.0, "roll": 1.0, "pinch": False}
+
+
+def aim_offset(handedness="right", **pose):
+    """Wie weit der Greifpunkt ueber der getrackten Handmitte liegt.
+
+    Gezielt wird in den Spalten mit dem Punkt, an dem Daumen und
+    Zeigefinger zugreifen; getrackt wird die Handmitte. Wer eine
+    Testhand vor ein Fach fuehren will, muss diesen Versatz
+    herausrechnen.
+    """
+    settings = dict(POSE)
+    settings.update(pose)
+    probe = synthetic_hand(0.0, 0.0, handedness, **settings)
+    grip = gestures.grip_point(probe, MappingConfig())
+    return float(grip[0] - probe.center[0]), float(grip[1] - probe.center[1])
 
 
 def hand_at(x, y, handedness="right", **pose):
@@ -126,9 +142,17 @@ class Driver:
         position = list(self.hands).index(name)
         return sorted(self.engine.hands.tracks)[position]
 
+    def aim(self, name, x, y, frames=12):
+        """Fuehrt die Hand so, dass ihr Greifpunkt auf (x, y) landet."""
+        hand = self.hands[name]
+        pose = {key: hand[key]
+                for key in ("fingers", "thumb", "tilt", "roll", "pinch")}
+        dx, dy = aim_offset(hand["handedness"], **pose)
+        return self.move(name, x - dx, y - dy, frames=frames)
+
     def reach(self, name, column, index, x):
         """Fuehrt die Hand vor das Fach `index` einer Spalte."""
-        self.move(name, x, column.slot_y(index), frames=12)
+        self.aim(name, x, column.slot_y(index), frames=12)
         browser = self.browser(name)
         if browser is not None:
             browser.cooldown = 0

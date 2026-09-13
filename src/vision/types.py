@@ -114,6 +114,11 @@ class HandView:
     hand_id: int
     x: float
     y: float
+    # Wohin die Hand zeigt: der Punkt, an dem Daumen und Zeigefinger
+    # zugreifen. Die Spalten waehlen danach aus, und die Zeigelinie geht
+    # von hier aus - sonst zeigt das Bild woanders hin als die Auswahl.
+    aim_x: float = 0.5
+    aim_y: float = 0.5
     handedness: str = "right"
     holding: bool = False
     token_id: Optional[int] = None

@@ -11,6 +11,7 @@ Hand aus und nie ihre Position:
     palm_facing    Handflaeche oder Handruecken      -> Halten (Freeze)
     pinch          Daumen und Zeigefinger beruehren  -> Greifen und Ablegen
     openness       Faust bis weit offene Hand        -> Gruppen Macros
+    grip_point     wo die Finger zugreifen           -> Zielen in den Spalten
 
 Alle Werte sind auf die Handgroesse normiert. Dadurch ist es egal, wie
 weit jemand von der Kamera weg steht.
@@ -160,6 +161,28 @@ def thumb_open(obs: HandObservation, config: MappingConfig) -> float:
 def pinch_value(obs: HandObservation) -> float:
     """Abstand Daumenspitze zu Zeigefingerspitze in Handgroessen."""
     return _distance(obs.landmarks, THUMB_TIP, INDEX_TIP) / obs.scale
+
+
+def grip_point(obs: HandObservation, config: MappingConfig) -> np.ndarray:
+    """Der Punkt, an dem Daumen und Zeigefinger sich treffen, shape (2,).
+
+    Damit zielt man in den beiden Spalten. Getrackt wird sonst die
+    Handmitte zwischen Handwurzel und Fingergrundgelenken - die liegt
+    rund eine Fachhoehe unter den Fingern, mit denen man sichtbar
+    greift. Genau dieser Versatz hat die Auswahl daneben treffen lassen:
+    die Hand zeigte auf ein Fach, ausgewaehlt war das darunter.
+
+    Gerechnet wird der Punkt aus der Handachse und nicht aus den
+    Fingerspitzen. Beim Zugreifen klappt der Zeigefinger ein; ein
+    Zielpunkt an den Spitzen wuerde in genau dem Moment wandern, in dem
+    die Auswahl stillstehen muss. Die Achse Handwurzel -> Grundgelenk
+    des Mittelfingers bleibt dagegen unberuehrt davon, wie die Finger
+    gerade stehen, und dreht sich mit der Hand.
+    """
+    points = obs.landmarks
+    wrist = points[WRIST][:2]
+    axis = points[MIDDLE_MCP][:2] - wrist
+    return np.asarray(wrist + axis * config.grip_reach, dtype=np.float32)
 
 
 def is_pinch(obs: HandObservation, config: MappingConfig) -> bool:

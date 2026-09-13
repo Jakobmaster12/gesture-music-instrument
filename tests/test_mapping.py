@@ -138,8 +138,25 @@ class TestBrowser(unittest.TestCase):
         cfg = test_config().forge
         driver = Driver()
         driver.place("a", 0.1, cfg.library_top)
+        driver.aim("a", 0.1, cfg.library_top)
         driver.step(5)
         self.assertEqual(driver.browser("a").index, 0)
+
+    def test_the_selection_follows_the_grabbing_fingers(self):
+        """Gezielt wird mit den Fingern, nicht mit dem Handteller.
+
+        Die getrackte Handmitte liegt rund eine Fachhoehe unter dem
+        Punkt, an dem Daumen und Zeigefinger zugreifen. Wuerde die Spalte
+        nach der Mitte auswaehlen, bekaeme man das Fach unter dem, auf
+        das man sichtbar zeigt.
+        """
+        driver = Driver()
+        column = driver.forge.library_column
+        driver.place("a", 0.1, 0.5)
+        driver.aim("a", 0.1, column.slot_y(2))
+        driver.step(4)
+        self.assertEqual(driver.browser("a").index, 2)
+        self.assertGreater(driver.hands["a"]["y"], column.slot_y(2))
 
     def test_moving_down_selects_a_later_slot(self):
         cfg = test_config().forge
@@ -147,7 +164,7 @@ class TestBrowser(unittest.TestCase):
         count = len(driver.forge.library_entries())
         driver.place("a", 0.1, cfg.library_top)
         driver.step(5)
-        driver.move("a", 0.1, cfg.library_bottom, frames=16)
+        driver.aim("a", 0.1, cfg.library_bottom, frames=16)
         self.assertEqual(driver.browser("a").index, count - 1)
 
     def test_a_small_wobble_does_not_change_the_selection(self):
@@ -155,20 +172,41 @@ class TestBrowser(unittest.TestCase):
         driver = Driver()
         column = driver.forge.library_column
         driver.place("a", 0.1, column.slot_y(3))
+        driver.aim("a", 0.1, column.slot_y(3))
         driver.step(8)
         chosen = driver.browser("a").index
         self.assertEqual(chosen, 3)
         for offset in (0.35, -0.35, 0.3, -0.3):
-            driver.move("a", 0.1, column.slot_y(3) + column.pitch * offset, frames=3)
+            driver.aim("a", 0.1, column.slot_y(3) + column.pitch * offset, frames=3)
             self.assertEqual(driver.browser("a").index, chosen)
 
     def test_a_full_slot_step_does_change_the_selection(self):
         driver = Driver()
         column = driver.forge.library_column
         driver.place("a", 0.1, column.slot_y(2))
+        driver.aim("a", 0.1, column.slot_y(2))
         driver.step(8)
-        driver.move("a", 0.1, column.slot_y(4), frames=10)
-        driver.step(6)          # kurz stehen bleiben, wie eine echte Hand
+        driver.aim("a", 0.1, column.slot_y(4), frames=10)
+        self.assertEqual(driver.browser("a").index, 4)
+
+    def test_the_grip_locks_the_slot_it_closes_on(self):
+        """Was beim Zugreifen unter den Fingern liegt, wird auch genommen.
+
+        Frueher zeigte die Spalte nach dem Glaetten noch auf das Fach
+        davor. Der Griff schnappt deshalb ohne Sperre auf die Hoehe der
+        Finger und haelt die Auswahl fest, solange er zugeht.
+        """
+        config = test_config()
+        config.forge.select_settle = 10.0   # Sperre bleibt voll aktiv
+        driver = Driver(config)
+        column = driver.forge.library_column
+        driver.place("a", 0.1, column.slot_y(3))
+        driver.aim("a", 0.1, column.slot_y(3))
+        driver.step(6)
+        driver.aim("a", 0.1, column.slot_y(3) + column.pitch * 0.6, frames=6)
+        self.assertEqual(driver.browser("a").index, 3)   # Sperre haelt noch
+        driver.set("a", pinch=True)
+        driver.step()
         self.assertEqual(driver.browser("a").index, 4)
 
     def test_the_library_does_not_shift_when_the_rack_fills_up(self):

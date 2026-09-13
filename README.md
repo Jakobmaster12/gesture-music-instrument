@@ -182,10 +182,19 @@ entscheidet hier bewusst die Position der Hand, nicht ihre Haltung: man
 sieht das Fach und greift danach.
 
 Eine leere Hand, die nah genug an eine Spalte herankommt, zeigt auf das
-Fach in ihrer Hoehe. Damit die Auswahl nicht an jeder Fachgrenze
-flackert, wird die Handhoehe kurz beruhigt, und die Auswahl springt erst
-um, wenn die Hand deutlich im Nachbarfach steht. In der Praxis heisst
-das: einmal hinhalten, kurz stehen bleiben, greifen.
+Fach in ihrer Hoehe. Gemeint ist dabei die Hoehe des Punktes, an dem
+Daumen und Zeigefinger zugreifen (`grip_reach`), nicht die des
+Handtellers - man zielt schliesslich mit den Fingern, die man gleich
+schliesst. Die duenne Linie im Bild zeigt genau von dort zum getroffenen
+Fach.
+
+Damit die Auswahl nicht an jeder Fachgrenze flackert, wird eine ruhende
+Hand beruhigt und die Auswahl gesperrt (`select_smoothing`,
+`select_hysteresis`). Beides gilt nur, solange die Hand steht: wandert
+sie sichtbar schneller als `select_settle` pro Bild, folgt die Auswahl
+sofort, und der zugehende Pinch nimmt ohnehin das Fach, das in diesem
+Moment unter den Fingern liegt. In der Praxis heisst das: hinhalten und
+greifen - warten muss man nicht.
 
 * **Bibliothek links.** Ein Fach pro Beat, mit Kuerzel, Namen und - bei
   eigenen Loops - Taktzahl und Anzahl der Dichtestufen. Ein genommener
@@ -448,7 +457,7 @@ gesture-music-instrument/
 │   ├── osc_monitor.py       OSC mitlesen
 │   ├── osc_to_midi.py       Bruecke zu jedem DAW
 │   └── render_demo.py       Demo WAV ohne Kamera
-├── tests/                   111 Tests, laufen ohne Kamera
+├── tests/                   113 Tests, laufen ohne Kamera
 └── max_for_live/            Anleitung und Max Patch
 ```
 
@@ -460,7 +469,7 @@ gesture-music-instrument/
 python -m unittest discover -s tests -v
 ```
 
-Die 111 Tests laufen komplett ohne Kamera, ohne Soundkarte und ohne Modell.
+Die 113 Tests laufen komplett ohne Kamera, ohne Soundkarte und ohne Modell.
 Abgedeckt sind die Haltungserkennung (Fingerzahl, Neigung, Daumen,
 Handdrehung, Pinch) einschliesslich des Nachweises, dass die Werte von
 der Position im Bild unabhaengig sind, die Wiedererkennung einzelner
@@ -485,6 +494,9 @@ Handkarten muessen sich auch bei sechs Haenden nicht ueberdecken.
 | Kein Ton | `pip install sounddevice`, unter Linux zusaetzlich `sudo apt install libportaudio2` |
 | Ton knackst | `"blocksize": 512` in `config.json` |
 | Pinch wird nicht erkannt | Finger deutlicher schliessen, oder `"pinch_max": 0.38` in `config.json` |
+| Die Spalte waehlt ein Fach ueber oder unter den Fingern | `"grip_reach"` in `config.json` anpassen: groesser zielt hoeher, kleiner tiefer (Standard 1.3) |
+| Auswahl springt beim Zielen hin und her | `"select_hysteresis": 0.30` oder `"select_settle": 0.020` in `config.json` |
+| Auswahl haengt der Hand hinterher | `"select_smoothing": 0.2` oder `"select_settle": 0.008` in `config.json` |
 | Loop friert nicht ein | Handgelenk weiter drehen, oder `"flip_threshold": 0.18` in `config.json` |
 | Loop wird beim Greifen versehentlich abgelegt | `"place_frames": 6` in `config.json` |
 | Kurzer Pinch legt nichts ab | `"place_frames": 3` in `config.json` |

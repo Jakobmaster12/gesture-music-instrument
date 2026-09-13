@@ -69,6 +69,11 @@ class MappingConfig:
     flip_frames: int = 3           # so viele Frames muss die Seite stimmen
     flip_arm: float = 0.55         # darueber gilt die Hand als flach zur Kamera
 
+    # Wo die Hand hinzeigt: der Punkt, an dem Daumen und Zeigefinger sich
+    # treffen, gemessen in Handgroessen ueber der Handwurzel entlang der
+    # Handachse. Damit wird in den Spalten gezielt.
+    grip_reach: float = 1.30
+
     # Daumen und Zeigefinger -> greifen und ablegen
     pinch_max: float = 0.30        # geschlossen, in Handgroessen
     pinch_clearance: float = 1.4   # Mittelfinger muss deutlich weiter weg sein
@@ -109,11 +114,15 @@ class ForgeConfig:
     rack_capture_x: float = 0.68    # ab hier zaehlt eine leere Hand als "am Regal"
     max_parked: int = 5             # so viele Faecher hat das Regal
 
-    # Auswahl in einer Spalte
-    select_hysteresis: float = 0.38 # zusaetzlicher Weg in Fachhoehen bis zum Umspringen
-    select_smoothing: float = 0.45  # Glaettung der Handhoehe, 0 = roh
+    # Auswahl in einer Spalte. Die Glaettung haelt eine ruhende Hand
+    # still, darf aber eine bewegte nicht bremsen - sonst zeigt die
+    # Spalte noch auf ein Fach, an dem die Finger laengst vorbei sind.
+    # Deshalb loest sich beides, sobald die Hand sichtbar wandert.
+    select_hysteresis: float = 0.22 # zusaetzlicher Weg in Fachhoehen bis zum Umspringen
+    select_smoothing: float = 0.35  # Glaettung der ruhenden Handhoehe, 0 = roh
+    select_settle: float = 0.012    # Weg pro Frame, ab dem Glaettung und Sperre fallen
 
-    take_frames: int = 4           # so lange den Pinch halten, dann greift die Hand
+    take_frames: int = 3           # so lange den Pinch halten, dann greift die Hand
     take_cooldown: int = 16        # danach kurz gesperrt
 
     # Halten

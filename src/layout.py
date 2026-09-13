@@ -13,7 +13,10 @@ laufen Auswahl und Bild auseinander.
 `Column.pick` ist der zweite Teil der Antwort auf "Auswahl ist muehsam":
 die Hand muss ueber die Mitte des Nachbarfachs hinaus, bevor die Auswahl
 umspringt. Ohne diese Sperre flackert die Auswahl an jeder Fachgrenze,
-und genau dort steht die Hand am haeufigsten.
+und genau dort steht die Hand am haeufigsten. Die Sperre ist aber nur
+fuer die ruhende Hand gedacht - wer sie auch einer wandernden Hand
+auferlegt, laesst die Auswahl hinterherhinken. Wie stark sie greift,
+entscheidet deshalb der Aufrufer (siehe `TokenForge._update_browser`).
 """
 
 from __future__ import annotations

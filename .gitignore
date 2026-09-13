@@ -4,3 +4,5 @@ __pycache__/
 models/*.task
 *.wav
 preview*.png
+.DS_Store
+/multiuser-gesturecontrolled-music-controller/

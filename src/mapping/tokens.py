@@ -1,4 +1,4 @@
-"""Die Beat Schmiede..
+"""Die Beat Schmiede.
 
 Ein Loop ist ein Beat in der Hand. Gespielt wird ausschliesslich mit der
 Haltung der Hand - die Hand darf dabei entspannt vor dem Koerper bleiben
@@ -21,6 +21,14 @@ Bibliothek und Regal in einer gemeinsamen Liste; jeder abgelegte Loop hat
 alles darin verschoben und verkleinert, bis Treffen zum Gluecksspiel
 wurde. Getrennte Spalten mit fester Fachhoehe und einer Sperre gegen das
 Umspringen (`Column.pick`) machen das Zielen wieder verlaesslich.
+
+Gezielt wird dabei mit `gestures.grip_point`, also mit dem Punkt, an dem
+Daumen und Zeigefinger zugreifen - nicht mit der getrackten Handmitte,
+die rund eine Fachhoehe darunter liegt. Und die Sperre gilt nur der
+ruhenden Hand: sobald die Hand sichtbar wandert, loesen sich Glaettung
+und Sperre, und der zugehende Pinch schnappt ohne beides auf die Hoehe
+der Finger. Sonst zeigt die Spalte noch auf ein Fach, an dem die Hand
+laengst vorbei ist, und man greift das falsche daneben.
 
 Ein Loop kann mehrere Rezepte tragen. Jedes Rezept ist ein Preset mit
 seinen eigenen eingefrorenen Werten, deshalb klingt eine Fusion genau so
@@ -52,7 +60,6 @@ PLACED = "placed"
 # Die beiden Spalten am Bildrand
 LIBRARY = "library"
 RACK = "rack"
-CANVAS = "canvas"
 
 
 @dataclass
@@ -130,7 +137,8 @@ class BrowserHand:
     pinch_frames: int = 0
     cooldown: int = 0
     latched: bool = False           # Pinch muss einmal geoeffnet werden
-    smooth_y: float = -1.0          # beruhigte Handhoehe fuer die Auswahl
+    pinching: bool = False          # steht der Griff schon seit dem letzten Frame?
+    smooth_y: float = -1.0          # beruhigte Zielhoehe fuer die Auswahl
     delete_progress: float = 0.0    # 0 = herausnehmen, 1 = gleich geloescht
 
 
@@ -517,21 +525,31 @@ class TokenForge:
                 self.events.append("discard")
 
     def _park(self, token: Token, instant: bool = False) -> None:
-        """Place a loop exactly where it is released on the stage."""
+        """Der Loop wandert ins Regal und spielt dort weiter."""
+        slot = self._free_rack_slot()
+        if slot < 0:
+            # Kein Fach frei. Der Loop bleibt in der Hand, und die Karte
+            # sagt fuer einen Moment warum - stilles Nichtstun hat sich
+            # wie ein Fehler des Instruments angefuehlt.
+            token.pinch_frames = 0
+            token.place_progress = 0.0
+            token.park_blocked = 45
+            self.events.append("rack_full")
+            return
         if token.state == LIVE:
             self._freeze(token)
-        drop_x = max(0.16, min(0.94, float(token.x)))
-        drop_y = max(0.15, min(0.86, float(token.y)))
         self._release_hand(token)
-        token.x = drop_x
-        token.y = drop_y
-        token.rack_index = -1
-        token.fly_from = (drop_x, drop_y)
-        token.fly_progress = 1.0
+        token.rack_index = slot
+        token.fly_from = (token.x, token.y)
+        token.fly_progress = 0.0
         token.pinch_frames = 0
         token.place_progress = 0.0
         token.pinch_latched = True
-        token.state = PLACED
+        token.state = FLYING
+        if instant:
+            token.fly_progress = 1.0
+            token.state = PLACED
+            token.x, token.y = self._rack_position(token.rack_index)
         self.events.append("park")
 
     def _release_hand(self, token: Token) -> None:
@@ -558,8 +576,8 @@ class TokenForge:
             self.tokens.remove(token)
 
     def _layout_rack(self) -> None:
-        # Legacy hook: parked loops keep their free-form screen positions.
-        return
+        for token in self.parked:
+            token.x, token.y = self._rack_position(token.rack_index)
 
     def _rack_position(self, index: int) -> Tuple[float, float]:
         column = self.rack_column
@@ -633,30 +651,32 @@ class TokenForge:
     # ------------------------------------------------------------------
     def _update_browser(self, free: List[HandTrack], alive: Set[int]) -> None:
         cfg = self.cfg
+        # Der Zustand haengt an der Hand, nicht daran, ob sie gerade frei
+        # ist. Sonst ginge die Sperre nach dem Ablegen im selben Frame
+        # wieder verloren.
         for hand_id in list(self.browsers):
             if hand_id not in alive:
                 del self.browsers[hand_id]
 
         library = self.library_entries()
-        parked = self.parked
+        rack = self.rack_entries()
 
         for track in free:
-            x = float(track.position[0])
-            y = float(track.position[1])
+            obs = track.observation
+            if obs is None:
+                self.browsers.pop(track.id, None)
+                continue
 
-            # Left edge = instrument palette. The rest of the stage is free-form.
-            target = None
-            if x > cfg.library_capture_x and parked:
-                nearest = min(parked, key=lambda token: math.hypot(token.x - x, token.y - y))
-                if math.hypot(nearest.x - x, nearest.y - y) <= 0.09:
-                    target = nearest
-
+            # Gezielt wird mit dem Punkt, an dem Daumen und Zeigefinger
+            # zugreifen, nicht mit der getrackten Handmitte. Die liegt
+            # rund eine Fachhoehe tiefer - man zeigte auf ein Fach und
+            # bekam das darunter.
+            aim = gestures.grip_point(obs, self.mapping)
+            x, y = float(aim[0]), float(aim[1])
             if x <= cfg.library_capture_x and library:
-                zone, index = LIBRARY, 0
-                column = self.library_column
-            elif target is not None:
-                zone, index = CANVAS, target.id
-                column = None
+                zone, column = LIBRARY, self.library_column
+            elif x >= cfg.rack_capture_x and any(rack):
+                zone, column = RACK, self.rack_column
             else:
                 self.browsers.pop(track.id, None)
                 continue
@@ -666,31 +686,52 @@ class TokenForge:
                 browser = BrowserHand(hand_id=track.id, zone=zone)
                 self.browsers[track.id] = browser
             if browser.zone != zone:
+                # Seitenwechsel: alles zuruecksetzen, damit kein halber
+                # Pinch von der anderen Spalte mitwandert.
                 browser.zone = zone
                 browser.smooth_y = -1.0
                 browser.pinch_frames = 0
+                browser.pinching = False
                 browser.delete_progress = 0.0
                 browser.latched = True
             browser.cooldown = max(0, browser.cooldown - 1)
 
-            obs = track.observation
-            if obs is None:
-                continue
+            # Die Zielhoehe zeigt auf ein Fach - dieselbe Formel wie beim
+            # Zeichnen. Glaettung und Sperre halten eine ruhende Hand auf
+            # ihrem Fach; eine Hand, die sichtbar wandert, sollen sie
+            # nicht bremsen. Deshalb loesen sich beide mit der
+            # Geschwindigkeit: `step` ist der Weg seit dem letzten Bild,
+            # `settled` faellt von 1 (Hand steht) auf 0 (Hand zieht
+            # durch).
+            if browser.smooth_y < 0.0:
+                browser.smooth_y = y
+                browser.index = column.nearest(y)
+            step = abs(y - browser.smooth_y)
+            settled = max(0.0, 1.0 - step / max(cfg.select_settle, 1e-6))
+            keep = min(max(cfg.select_smoothing, 0.0), 0.95) * settled
+            browser.smooth_y += (y - browser.smooth_y) * (1.0 - keep)
 
             pinching = gestures.is_pinch(obs, self.mapping)
+            # Ein Griff, der wirklich etwas ausloest. Im Moment, in dem
+            # er zugeht, zaehlt allein, was unter den Fingern liegt: ohne
+            # Sperre, ohne Nachlauf. Danach steht die Auswahl fest,
+            # solange der Griff haelt - sonst wandert das Fach noch
+            # weg, waehrend man es schon greift.
+            armed = pinching and not browser.latched and browser.cooldown <= 0
+            if armed and not browser.pinching:
+                browser.smooth_y = y
+                browser.index = column.nearest(y)
+            elif not armed:
+                browser.index = column.pick(
+                    browser.smooth_y, browser.index,
+                    cfg.select_hysteresis * settled,
+                )
+            browser.pinching = armed
+
             if zone == LIBRARY:
-                y = float(track.position[1])
-                if browser.smooth_y < 0.0:
-                    browser.smooth_y = y
-                    browser.index = column.nearest(y)
-                else:
-                    keep = min(max(cfg.select_smoothing, 0.0), 0.95)
-                    browser.smooth_y += (y - browser.smooth_y) * (1.0 - keep)
-                browser.index = column.pick(browser.smooth_y, browser.index, cfg.select_hysteresis)
                 self._browse_library(browser, library, track, pinching)
             else:
-                browser.index = int(index)
-                self._browse_canvas(browser, target, track, pinching)
+                self._browse_rack(browser, rack, track, pinching)
 
     def _browse_library(
         self, browser: BrowserHand, entries: List[BrowserEntry],
@@ -706,38 +747,6 @@ class TokenForge:
         browser.pinch_frames += 1
         if browser.pinch_frames >= max(self.cfg.take_frames, 1):
             self._take(entries[min(browser.index, len(entries) - 1)], hand, browser)
-
-    def _browse_canvas(
-        self, browser: BrowserHand, token: Optional[Token],
-        hand: HandTrack, pinching: bool,
-    ) -> None:
-        if token is None or token.state != PLACED:
-            browser.pinch_frames = 0
-            browser.delete_progress = 0.0
-            return
-        if not pinching:
-            held = browser.pinch_frames
-            latched = browser.latched
-            browser.latched = False
-            browser.pinch_frames = 0
-            browser.delete_progress = 0.0
-            if not latched and browser.cooldown <= 0 and held >= max(self.cfg.take_frames, 1):
-                self._take(BrowserEntry(kind="loop", preset_ids=token.preset_ids, token_id=token.id), hand, browser)
-            return
-        if browser.latched or browser.cooldown > 0:
-            browser.pinch_frames = 0
-            browser.delete_progress = 0.0
-            return
-        browser.pinch_frames += 1
-        span = max(self.cfg.discard_frames - self.cfg.take_frames, 1)
-        browser.delete_progress = min(1.0, max(0, browser.pinch_frames - self.cfg.take_frames) / span)
-        if browser.pinch_frames >= max(self.cfg.discard_frames, 1):
-            self._remove(token)
-            browser.pinch_frames = 0
-            browser.delete_progress = 0.0
-            browser.latched = True
-            browser.cooldown = self.cfg.take_cooldown
-            self.events.append("discard")
 
     def _browse_rack(
         self, browser: BrowserHand, slots: List[Optional[BrowserEntry]],
@@ -847,11 +856,14 @@ class TokenForge:
             obs = track.observation
             token = held.get(track.id)
             browser = self.browsers.get(track.id)
+            aim = gestures.grip_point(obs, self.mapping)
             views.append(
                 HandView(
                     hand_id=track.id,
                     x=float(track.position[0]),
                     y=float(track.position[1]),
+                    aim_x=float(aim[0]),
+                    aim_y=float(aim[1]),
                     handedness=track.handedness,
                     holding=token is not None,
                     token_id=token.id if token else None,
